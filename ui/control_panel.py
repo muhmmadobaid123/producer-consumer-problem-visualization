@@ -1,8 +1,85 @@
 from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, 
                              QLabel, QSpinBox, QDoubleSpinBox, QComboBox, 
-                             QPushButton, QCheckBox, QFileDialog, QSizePolicy)
-from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt, pyqtSignal
+                             QPushButton, QCheckBox, QFileDialog, QSizePolicy,
+                             QStylePainter, QStyleOptionButton, QStyle, QSlider)
+from PyQt6.QtGui import QFont, QPalette
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+
+class MarqueeButton(QPushButton):
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self._scroll_offset = 0
+        self._original_text = text
+        
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_scroll)
+        self.timer.start(50)  # Update every 50ms for smooth scrolling
+
+    def setText(self, text):
+        super().setText(text)
+        self._original_text = text
+        self._scroll_offset = 0
+        self.update()
+
+    def update_scroll(self):
+        if not self.isVisible():
+            return
+        
+        fm = self.fontMetrics()
+        margin = 12
+        available_width = self.width() - margin * 2
+        text_width = fm.horizontalAdvance(self._original_text)
+        
+        if text_width > available_width:
+            self._scroll_offset += 1
+            spacing = 40
+            if self._scroll_offset >= text_width + spacing:
+                self._scroll_offset = 0
+            self.update()
+        else:
+            if self._scroll_offset != 0:
+                self._scroll_offset = 0
+                self.update()
+
+    def paintEvent(self, event):
+        painter = QStylePainter(self)
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        
+        # Draw background and border
+        option.text = ""
+        painter.drawControl(QStyle.ControlElement.CE_PushButton, option)
+        
+        fm = self.fontMetrics()
+        margin = 8
+        rect = self.rect().adjusted(margin, 0, -margin, 0)
+        available_width = rect.width()
+        text_width = fm.horizontalAdvance(self._original_text)
+        
+        painter.save()
+        painter.setClipRect(rect)
+        
+        # Determine correct text color
+        palette = self.palette()
+        if not self.isEnabled():
+            color = palette.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText)
+        else:
+            color = palette.color(QPalette.ColorGroup.Active, QPalette.ColorRole.ButtonText)
+        painter.setPen(color)
+        
+        painter.setFont(self.font())
+        
+        if text_width > available_width:
+            x_pos = rect.left() - self._scroll_offset
+            y_pos = rect.center().y() + fm.ascent() / 2 - 1
+            painter.drawText(int(x_pos), int(y_pos), self._original_text)
+            
+            spacing = 40
+            painter.drawText(int(x_pos + text_width + spacing), int(y_pos), self._original_text)
+        else:
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, self._original_text)
+            
+        painter.restore()
 
 class ControlPanel(QWidget):
     theme_changed = pyqtSignal(str)
@@ -74,7 +151,7 @@ class ControlPanel(QWidget):
         rate_row.addWidget(self.cons_delay)
         config_layout.addLayout(rate_row)
         
-        # Customizations: Theme & Speed multiplier
+        # Customizations: Theme & Speed slider
         custom_row = QHBoxLayout()
         custom_row.addWidget(QLabel("Theme:"))
         self.theme_combo = QComboBox(config_group)
@@ -82,12 +159,18 @@ class ControlPanel(QWidget):
         self.theme_combo.currentTextChanged.connect(self.theme_changed.emit)
         custom_row.addWidget(self.theme_combo)
         
-        custom_row.addWidget(QLabel("Speed:"))
-        self.speed_combo = QComboBox(config_group)
-        self.speed_combo.addItems(["0.25x", "0.5x", "1.0x", "2.0x", "5.0x", "10.0x"])
-        self.speed_combo.setCurrentText("1.0x")
-        self.speed_combo.currentTextChanged.connect(self.update_simulation_speed)
-        custom_row.addWidget(self.speed_combo)
+        # Continuous QSlider for simulation speed
+        self.speed_label = QLabel("Speed: 1.0x", config_group)
+        custom_row.addWidget(self.speed_label)
+        
+        self.speed_slider = QSlider(Qt.Orientation.Horizontal, config_group)
+        self.speed_slider.setRange(1, 100)  # Represents 0.1x to 10.0x
+        self.speed_slider.setValue(10)      # Default to 1.0x
+        self.speed_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.speed_slider.setTickInterval(10)
+        self.speed_slider.valueChanged.connect(self.update_simulation_speed_slider)
+        custom_row.addWidget(self.speed_slider)
+        
         config_layout.addLayout(custom_row)
         
         layout.addWidget(config_group)
@@ -100,34 +183,34 @@ class ControlPanel(QWidget):
         controls_layout.setSpacing(6)
         
         btn_row1 = QHBoxLayout()
-        self.start_btn = QPushButton("Start Simulation", controls_group)
+        self.start_btn = MarqueeButton("Start Simulation", controls_group)
         self.start_btn.setObjectName("action_btn")
         self.start_btn.clicked.connect(self.start_simulation)
         btn_row1.addWidget(self.start_btn)
         
-        self.pause_btn = QPushButton("Pause", controls_group)
+        self.pause_btn = MarqueeButton("Pause", controls_group)
         self.pause_btn.clicked.connect(self.pause_simulation)
         self.pause_btn.setEnabled(False)
         btn_row1.addWidget(self.pause_btn)
         
-        self.resume_btn = QPushButton("Resume", controls_group)
+        self.resume_btn = MarqueeButton("Resume", controls_group)
         self.resume_btn.clicked.connect(self.resume_simulation)
         self.resume_btn.setEnabled(False)
         btn_row1.addWidget(self.resume_btn)
         controls_layout.addLayout(btn_row1)
         
         btn_row2 = QHBoxLayout()
-        self.stop_btn = QPushButton("Stop", controls_group)
+        self.stop_btn = MarqueeButton("Stop", controls_group)
         self.stop_btn.setObjectName("stop_btn")
         self.stop_btn.clicked.connect(self.stop_simulation)
         self.stop_btn.setEnabled(False)
         btn_row2.addWidget(self.stop_btn)
         
-        self.reset_btn = QPushButton("Reset Engine", controls_group)
+        self.reset_btn = MarqueeButton("Reset Engine", controls_group)
         self.reset_btn.clicked.connect(self.reset_simulation)
         btn_row2.addWidget(self.reset_btn)
         
-        self.step_btn = QPushButton("Step Mode", controls_group)
+        self.step_btn = MarqueeButton("Step Mode", controls_group)
         self.step_btn.clicked.connect(self.step_simulation)
         self.step_btn.setEnabled(False)
         btn_row2.addWidget(self.step_btn)
@@ -135,22 +218,22 @@ class ControlPanel(QWidget):
         
         # dynamic addition/removal row
         btn_row3 = QHBoxLayout()
-        self.add_p_btn = QPushButton("+ Producer", controls_group)
+        self.add_p_btn = MarqueeButton("+ Producer", controls_group)
         self.add_p_btn.clicked.connect(self.controller.add_producer)
         self.add_p_btn.setEnabled(False)
         btn_row3.addWidget(self.add_p_btn)
         
-        self.rem_p_btn = QPushButton("- Producer", controls_group)
+        self.rem_p_btn = MarqueeButton("- Producer", controls_group)
         self.rem_p_btn.clicked.connect(self.controller.remove_producer)
         self.rem_p_btn.setEnabled(False)
         btn_row3.addWidget(self.rem_p_btn)
         
-        self.add_c_btn = QPushButton("+ Consumer", controls_group)
+        self.add_c_btn = MarqueeButton("+ Consumer", controls_group)
         self.add_c_btn.clicked.connect(self.controller.add_consumer)
         self.add_c_btn.setEnabled(False)
         btn_row3.addWidget(self.add_c_btn)
         
-        self.rem_c_btn = QPushButton("- Consumer", controls_group)
+        self.rem_c_btn = MarqueeButton("- Consumer", controls_group)
         self.rem_c_btn.clicked.connect(self.controller.remove_consumer)
         self.rem_c_btn.setEnabled(False)
         btn_row3.addWidget(self.rem_c_btn)
@@ -166,29 +249,29 @@ class ControlPanel(QWidget):
         stress_layout.setSpacing(6)
         
         row1 = QHBoxLayout()
-        self.force_full_btn = QPushButton("Force Full Buffer", stress_group)
+        self.force_full_btn = MarqueeButton("Force Full Buffer", stress_group)
         self.force_full_btn.clicked.connect(self.controller.force_buffer_full)
         self.force_full_btn.setEnabled(False)
         row1.addWidget(self.force_full_btn)
         
-        self.force_empty_btn = QPushButton("Force Empty Buffer", stress_group)
+        self.force_empty_btn = MarqueeButton("Force Empty Buffer", stress_group)
         self.force_empty_btn.clicked.connect(self.controller.force_buffer_empty)
         self.force_empty_btn.setEnabled(False)
         row1.addWidget(self.force_empty_btn)
         stress_layout.addLayout(row1)
         
         row2 = QHBoxLayout()
-        self.burst_btn = QPushButton("Burst Load Spike", stress_group)
+        self.burst_btn = MarqueeButton("Burst Load Spike", stress_group)
         self.burst_btn.clicked.connect(self.controller.random_burst_load)
         self.burst_btn.setEnabled(False)
         row2.addWidget(self.burst_btn)
         
-        self.fail_p_btn = QPushButton("Fail Producer", stress_group)
+        self.fail_p_btn = MarqueeButton("Fail Producer", stress_group)
         self.fail_p_btn.clicked.connect(self.controller.random_producer_failure)
         self.fail_p_btn.setEnabled(False)
         row2.addWidget(self.fail_p_btn)
         
-        self.fail_c_btn = QPushButton("Fail Consumer", stress_group)
+        self.fail_c_btn = MarqueeButton("Fail Consumer", stress_group)
         self.fail_c_btn.clicked.connect(self.controller.random_consumer_failure)
         self.fail_c_btn.setEnabled(False)
         row2.addWidget(self.fail_c_btn)
@@ -196,7 +279,7 @@ class ControlPanel(QWidget):
         
         # Reports / Sound Row
         row3 = QHBoxLayout()
-        self.report_btn = QPushButton("Generate PDF Report", stress_group)
+        self.report_btn = MarqueeButton("Generate PDF Report", stress_group)
         self.report_btn.clicked.connect(self.generate_pdf_report)
         self.report_btn.setEnabled(False)
         row3.addWidget(self.report_btn)
@@ -221,7 +304,10 @@ class ControlPanel(QWidget):
         theme = self.theme_combo.currentText()
         
         self.controller.start_sim(p_cnt, c_cnt, cap, p_delay, c_delay, item_type, theme)
-        self.update_simulation_speed(self.speed_combo.currentText())
+        
+        # Apply current slider speed
+        speed_mult = self.speed_slider.value() / 10.0
+        self.controller.set_speed_multiplier(speed_mult)
         
         # Toggle buttons
         self.start_btn.setEnabled(False)
@@ -284,6 +370,8 @@ class ControlPanel(QWidget):
         self.cap_spin.setValue(5)
         self.prod_delay.setValue(1.0)
         self.cons_delay.setValue(1.2)
+        self.speed_slider.setValue(10)
+        self.speed_label.setText("Speed: 1.0x")
         
         self.start_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
@@ -297,8 +385,9 @@ class ControlPanel(QWidget):
         self.pause_btn.setEnabled(False)
         self.resume_btn.setEnabled(True)
 
-    def update_simulation_speed(self, factor_str):
-        mult = float(factor_str.replace("x", ""))
+    def update_simulation_speed_slider(self, value):
+        mult = value / 10.0
+        self.speed_label.setText(f"Speed: {mult:.1f}x")
         self.controller.set_speed_multiplier(mult)
 
     def generate_pdf_report(self):
@@ -308,8 +397,6 @@ class ControlPanel(QWidget):
             return
             
         # Optional: Save standard plot images to embed in PDF
-        # We can ask the main window's analytics panel to export their views, 
-        # or generate clean plots using matplotlib/pandas in background
         from pdf_generator import PDFGenerator
         
         # We will dynamically compile optimization recommendations

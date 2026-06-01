@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
         
         # Conveyor Visual Canvas Frame
         self.conveyor_widget = ConveyorWidget(self.tracker, self.controller, mid_splitter)
+        self.conveyor_widget.setMaximumHeight(380)
         mid_splitter.addWidget(self.conveyor_widget)
         
         # Synchronization Monitor & Explainer Cards (Horizontal Split)
@@ -162,6 +163,12 @@ class MainWindow(QMainWindow):
         bottom_mid_layout.addWidget(self.ai_advisor, stretch=2)
         
         mid_splitter.addWidget(bottom_mid)
+        
+        # Set stretch factors so conveyor doesn't balloon and other panels expand nicely
+        mid_splitter.setStretchFactor(0, 0)
+        mid_splitter.setStretchFactor(1, 1)
+        mid_splitter.setStretchFactor(2, 2)
+        
         master_layout.addWidget(mid_splitter, stretch=1)
         
         # 3. CONTROL PANEL
