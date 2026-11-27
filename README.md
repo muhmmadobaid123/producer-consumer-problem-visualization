@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Smart Factory: Producer–Consumer Synchronization Simulator
 
 A high-performance, multithreaded desktop application designed to visualize and teach core Operating System (OS) concurrency concepts. This simulator models a **Smart Factory conveyor belt system** using classic synchronization primitives (**Mutex Locks** and **Semaphores**) to solve the **Producer–Consumer (Bounded Buffer) problem**.
@@ -201,3 +202,7 @@ python core/test_sync.py
     *   Runs are recorded automatically.
     *   Go to **Replay Database** in the top menu bar to load a previous simulation session and step through it.
 5.  **Generate Report**: Click **Export PDF Report** to save a detailed analysis of your simulation run.
+=======
+# producer-consumer-problem-visualization
+An Interactive visualization of the ProducerConsumer Problem demonstrating process synchronization using a shared bounded buffer. Watch how producers generate items and consumers retrieve them while semaphores and mutex locks prevent race conditions, buffer overflow, and underflow. Explore realtime operations, buffer states, and synchronization.
+>>>>>>> 4615b796eae6fc559ae941ef636360cc4f548ef5
