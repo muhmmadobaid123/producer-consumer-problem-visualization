@@ -19,7 +19,7 @@ class Controller:
         self.num_consumers = 0
         self.buffer_capacity = 5
         self.prod_rate = 1.0
-        self.cons_rate = 1.2
+        self.cons_rate = 1.2    
         self.item_type = "Widget"
         self.theme = "Dark Mode"
         
@@ -85,6 +85,7 @@ class Controller:
         self._paused = False
         self.step_mode = False
         self.pause_event.set()
+        self.tracker.start_clock()
         
         self.db.log_event(self.sim_id, "SYSTEM", "0", "SYSTEM", "Simulation started successfully.", 0.0)
         self.tracker.set_edu_message("Simulation started. Producers and Consumers are running.")
@@ -92,6 +93,7 @@ class Controller:
     def pause_sim(self):
         self._paused = True
         self.pause_event.clear()
+        self.tracker.pause_clock()
         self.tracker.set_edu_message("Simulation paused.")
         if self.sim_id and not self.is_replay:
             self.db.log_event(self.sim_id, "SYSTEM", "0", "SYSTEM", "Simulation paused.", self.tracker.get_snapshot()["elapsed_time"])
@@ -100,6 +102,7 @@ class Controller:
         self._paused = False
         self.step_mode = False
         self.pause_event.set()
+        self.tracker.resume_clock()
         self.tracker.set_edu_message("Simulation resumed.")
         if self.sim_id and not self.is_replay:
             self.db.log_event(self.sim_id, "SYSTEM", "0", "SYSTEM", "Simulation resumed.", self.tracker.get_snapshot()["elapsed_time"])
@@ -120,6 +123,7 @@ class Controller:
         
         self._paused = True
         self.pause_event.clear()
+        self.tracker.stop_clock()
         
         if self.sim_id and not self.is_replay:
             snap = self.tracker.get_snapshot()
@@ -318,6 +322,7 @@ class Controller:
         
         # Apply the snapshot to tracker directly (mocking thread actions)
         with self.tracker.lock:
+            self.tracker.elapsed_time = frame["elapsed_time"]
             self.tracker.total_produced = frame["total_produced"]
             self.tracker.total_consumed = frame["total_consumed"]
             self.tracker.producer_block_count = frame["producer_block_count"]

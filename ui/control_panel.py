@@ -391,7 +391,7 @@ class ControlPanel(QWidget):
         self.controller.set_speed_multiplier(mult)
 
     def generate_pdf_report(self):
-        snap = self.tracker.get_snapshot()
+        snap = self.controller.tracker.get_snapshot()
         path, _ = QFileDialog.getSaveFileName(self, "Export Performance Report PDF", "", "PDF Files (*.pdf)")
         if not path:
             return

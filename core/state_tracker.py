@@ -35,7 +35,9 @@ class StateTracker:
         self.threads = {}  # thread_id -> {"id": str, "type": "PRODUCER"/"CONSUMER", "state": ThreadState, "items_processed": int, "wait_time": float, "last_active": float, "current_task": str, "history": list}
         
         # Historical throughput tracking (time, produced_count, consumed_count)
-        self.start_time = time.time()
+        self.elapsed_time = 0.0
+        self.is_running = False
+        self.last_time = None
         self.throughput_history = []  # List of (relative_time, produced, consumed)
         
         # Lock wait time counters
@@ -67,7 +69,9 @@ class StateTracker:
             self.full_semaphore_val = 0
             
             self.threads.clear()
-            self.start_time = time.time()
+            self.elapsed_time = 0.0
+            self.is_running = False
+            self.last_time = None
             self.throughput_history.clear()
             
             self.max_wait_time = 0.0
@@ -77,6 +81,31 @@ class StateTracker:
             self.edu_message = "Simulation reset. Ready to start."
             self.deadlock_detected = False
             self.starvation_detected = False
+
+    def start_clock(self):
+        with self.lock:
+            self.is_running = True
+            self.last_time = time.time()
+
+    def pause_clock(self):
+        with self.lock:
+            if self.is_running and self.last_time is not None:
+                self.elapsed_time += (time.time() - self.last_time)
+            self.is_running = False
+            self.last_time = None
+
+    def resume_clock(self):
+        with self.lock:
+            if not self.is_running:
+                self.is_running = True
+                self.last_time = time.time()
+
+    def stop_clock(self):
+        with self.lock:
+            if self.is_running and self.last_time is not None:
+                self.elapsed_time += (time.time() - self.last_time)
+            self.is_running = False
+            self.last_time = None
 
     def register_thread(self, thread_id, thread_type):
         with self.lock:
@@ -188,9 +217,14 @@ class StateTracker:
 
     def get_snapshot(self):
         with self.lock:
+            # Calculate elapsed time dynamically if currently running
+            current_elapsed = self.elapsed_time
+            if self.is_running and self.last_time is not None:
+                current_elapsed += (time.time() - self.last_time)
+                
             # Create a clean, serializable copy of the state
             return {
-                "elapsed_time": time.time() - self.start_time,
+                "elapsed_time": current_elapsed,
                 "total_produced": self.total_produced,
                 "total_consumed": self.total_consumed,
                 "producer_block_count": self.producer_block_count,
